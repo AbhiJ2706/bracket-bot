@@ -48,6 +48,8 @@ def generate_robot_code(user_command: str) -> str:
     Now, **only output Python code** that satisfies these requirements and showcases various robot maneuvers. The output should be plain Python code using the RobotController class. It must not input any other text.
     """.strip()
 
+    print(user_command)
+
     filtered_text = client.messages.create(
         model="claude-3-5-sonnet-20241022",
         max_tokens=8096,
@@ -55,13 +57,15 @@ def generate_robot_code(user_command: str) -> str:
             {"role": "system", "content": filter_prompt},
             {"role": "user", "content": user_command}
         ]
-    )
+    ).content[0].text
+
+    print(filtered_text)
 
     message = client.messages.create(
         model="claude-3-5-sonnet-20241022",
         max_tokens=8096,
         messages=[
-            {"role": "user", "content": prompt + filtered_text.content[0].text}
+            {"role": "user", "content": prompt + filtered_text}
         ]
     )
     
