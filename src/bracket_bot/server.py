@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 from pydub import AudioSegment
 from text_to_code import generate_robot_code, run_generated_code  
 from transcribe import Transcriber
+import time
 
 # MQTT topic to which the audio is published
 MQTT_TOPIC_STT = "web/audio"
@@ -47,16 +48,30 @@ def on_message(client, userdata, msg):
         print("Error during audio processing or speech recognition:", e)
 
 
-# Set up MQTT client
-client = mqtt.Client()
-client.on_message = on_message
 
-# Connect to MQTT broker
-client.connect("localhost", 1883, 60)
+def main():
+    client = mqtt.Client()
+    client.on_message = on_message
 
-# Subscribe to the audio topic
-client.subscribe(MQTT_TOPIC_STT)
+    try:
+        client.connect("localhost", 1883, 60)
+        client.subscribe(MQTT_TOPIC_STT)
 
-# Start listening for messages
-client.loop_forever()
+        client.loop_start()
+        print("Listening for commands... Press Ctrl+C to exit.")
+        
+        while True:
+            time.sleep(1)
+    
+    except KeyboardInterrupt:
+        print("Exiting...")
+    except Exception as e:
+        print(f"Error: {e}")
+    
+    finally:
+        client.loop_stop()
+        client.disconnect()
+        print("Shutdown complete.")
 
+if __name__ == "__main__":
+    main()
