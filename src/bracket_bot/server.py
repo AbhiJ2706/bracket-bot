@@ -48,7 +48,6 @@ def on_message(client, userdata, msg):
         print("Error during audio processing or speech recognition:", e)
 
 
-
 def main():
     client = mqtt.Client()
     client.on_message = on_message
