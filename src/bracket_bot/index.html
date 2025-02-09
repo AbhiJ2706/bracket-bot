@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Robot Controller with Audio Capture</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Include MQTT.js from CDN -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    #status {
+      margin: 20px;
+      color: red;
+      font-size: 18px;
+    }
+    button {
+      font-size: 16px;
+      padding: 8px 16px;
+      margin: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Disconnected</div>
+  <!-- Buttons to control audio recording -->
+  <button id="startBtn" onclick="startRecording()">Start Recording</button>
+  <button id="stopBtn" onclick="stopRecording()" disabled>Stop Recording</button>
+
+  <script>
+    // MQTT Client Setup
+    const hostname = window.location.hostname; 
+    const username = hostname.split('-')[0];
+    const mqttHost = username.includes('.') ? hostname : `yellow-bracketbot.local`;
+    const client = mqtt.connect(`ws://${mqttHost}:9001`);
+
+    client.on('connect', function () {
+      document.getElementById('status').style.color = 'green';
+      document.getElementById('status').innerHTML = 'Connected';
+    });
+
+    client.on('error', function (error) {
+      document.getElementById('status').style.color = 'red';
+      document.getElementById('status').innerHTML = 'Connection failed: ' + error;
+    });
+
+    client.on('message', function (topic, message) {
+      console.log("Message received:", message.toString());
+    });
+
+    // Audio Recording Variables
+    let mediaRecorder;
+    let audioChunks = [];
+
+    // Request microphone access
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = event => {
+          if (event.data && event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+          audioChunks = [];
+
+          audioBlob.arrayBuffer().then(arrayBuffer => {
+            client.publish("web/audio", new Uint8Array(arrayBuffer));
+            console.log("Audio published to MQTT");
+          }).catch(err => {
+            console.error("Error converting audio blob:", err);
+          });
+        };
+      });
+
+    function startRecording() {
+      if (mediaRecorder && mediaRecorder.state === "inactive") {
+        audioChunks = [];
+        mediaRecorder.start();
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("stopBtn").disabled = false;
+        console.log("Recording started");
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled = true;
+        console.log("Recording stopped");
+      }
+    }
+  </script>
+</body>
+</html>

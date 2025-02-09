@@ -1,17 +1,21 @@
 import anthropic
 from dotenv import load_dotenv
+import os
 
-load_dotenv()
-
-
-
-
-client = anthropic.Anthropic()
-
-def generate_robot_code(user_command:str)->str:
+def generate_robot_code(user_command: str) -> str:
+    # Load environment variables
+    load_dotenv()
+    
+    # Get API key from environment variable
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
+    
+    # Initialize client with API key
+    client = anthropic.Anthropic(api_key=api_key)
+    
     prompt = """
     You are an expert at controlling a two-motor drive robot. Your goal is to generate Python code that leverages the RobotController class to perform various movements and maneuvers.
-
     ### Template Setup:
     ```python
     from robot_motion import RobotController
@@ -23,18 +27,13 @@ def generate_robot_code(user_command:str)->str:
     # Make sure to call the methods as controller.method_name()
     # Make sure to add this template to your code
     controller.cleanup()
-
     ```
-
     ### Available Methods:
-
     - **drive_distance(distance_meters:float)**: Moves the robot forward/backward for the specified distance in meters.
     - **turn_degrees(degrees:float)**: Turns the robot by a specified degree offset.
-
     ### Instructions:
     - Use RobotController methods to command the robot.
     - The final output should be pure Python code using RobotController only.
-
     Now, **only output Python code** that satisfies these requirements and showcases various robot maneuvers. The output should be plain Python code using the RobotController class. It must not input any other text.
     """.strip()
 
@@ -45,7 +44,7 @@ def generate_robot_code(user_command:str)->str:
             {"role": "user", "content": prompt + user_command}
         ]
     )
-
+    
     response = message.content[0].text
     
     # Clean up the code by removing markdown code blocks and empty lines
@@ -53,6 +52,7 @@ def generate_robot_code(user_command:str)->str:
         line for line in response.split('\n')
         if not line.startswith('```') and line.strip()
     ).strip()
+
     
     return cleaned_code
 
@@ -71,13 +71,4 @@ def run_generated_code(code_string:str)->bool:
         print(f"Error executing robot code: {str(e)}")
         return False
 
-code = generate_robot_code("do a zigzag")
 
-
-
-print(code)
-user_input = input("Do you want to execute the generated code? (yes/no): ").strip().lower()
-if user_input == 'yes':
-    success = run_generated_code(code)
-else:
-    print("Code execution skipped.")

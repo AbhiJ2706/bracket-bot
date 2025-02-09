@@ -53,3 +53,23 @@ class Transcriber:
         finally:
             return speech_chunk
         
+    def transcribe_audio_file(self, file_path: str):
+        """
+        Transcribe an audio file given its file path.
+        
+        Args:
+            file_path (str): The path to the audio file.
+
+        Returns:
+            str: The transcription text.
+        """
+        try:
+            print(f"Transcribing file: {file_path}")
+            # The pipeline accepts a file path directly and handles file loading/conversion.
+            result = self.transcriber_model(file_path, generate_kwargs={"max_new_tokens": 128})
+            transcription = result["text"]
+            print("Transcription:", transcription)
+            return transcription
+        except Exception as e:
+            print(f"Error transcribing file '{file_path}': {e}")
+            return ""

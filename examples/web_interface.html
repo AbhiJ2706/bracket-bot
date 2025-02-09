@@ -6,6 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
+        /* Add this to make the page non-scrollable */
+        html, body {
+            overflow: hidden;
+        }
         .control-pad {
             display: grid;
             grid-template-columns: repeat(3, 80px);
@@ -47,15 +51,15 @@
     <div id="status">Disconnected</div>
     
     <div class="control-pad">
-        <button class="control-button" ontouchstart="sendVelocity(0.35, -1.0)" ontouchend="sendVelocity(0, 0)"> </button>
-        <button class="control-button" ontouchstart="sendVelocity(0.35, 0)" ontouchend="sendVelocity(0, 0)">^</button>
-        <button class="control-button" ontouchstart="sendVelocity(0.35, 1.0)" ontouchend="sendVelocity(0, 0)"> </button>
-        <button class="control-button" ontouchstart="sendVelocity(0, -1.0)" ontouchend="sendVelocity(0, 0)"><</button>
+        <button class="control-button" ontouchstart="sendVelocity(0.3, -1.3)" ontouchend="sendVelocity(0, 0)"> </button>
+        <button class="control-button" ontouchstart="sendVelocity(0.3, 0)" ontouchend="sendVelocity(0, 0)">^</button>
+        <button class="control-button" ontouchstart="sendVelocity(0.3, 1.3)" ontouchend="sendVelocity(0, 0)"> </button>
+        <button class="control-button" ontouchstart="sendVelocity(0, -1.3)" ontouchend="sendVelocity(0, 0)"><</button>
         <button class="control-button" ontouchstart="sendVelocity(0, 0)" ontouchend="sendVelocity(0, 0)">+</button>
-        <button class="control-button" ontouchstart="sendVelocity(0, 1.0)" ontouchend="sendVelocity(0, 0)">></button>
-        <button class="control-button" ontouchstart="sendVelocity(-0.35, -1.0)" ontouchend="sendVelocity(0, 0)"> </button>
-        <button class="control-button" ontouchstart="sendVelocity(-0.35, 0)" ontouchend="sendVelocity(0, 0)">v</button>
-        <button class="control-button" ontouchstart="sendVelocity(-0.35, 1.0)" ontouchend="sendVelocity(0, 0)"> </button>
+        <button class="control-button" ontouchstart="sendVelocity(0, 1.3)" ontouchend="sendVelocity(0, 0)">></button>
+        <button class="control-button" ontouchstart="sendVelocity(-0.3, -1.3)" ontouchend="sendVelocity(0, 0)"> </button>
+        <button class="control-button" ontouchstart="sendVelocity(-0.3, 0)" ontouchend="sendVelocity(0, 0)">v</button>
+        <button class="control-button" ontouchstart="sendVelocity(-0.3, 1.3)" ontouchend="sendVelocity(0, 0)"> </button>
     </div>
 
     <div class="speech-box">
@@ -63,18 +67,37 @@
         <button onclick="sendSpeech()">Speak</button>
     </div>
 
+    <!-- Add a new div to display the grid -->
+    <div id="grid-container" style="margin: 20px;"></div>
+
     <script>
         // Extract username from URL or use hostname
         const hostname = window.location.hostname;  // e.g., "beige-desktop.local" or "192.168.1.100"
         const username = hostname.split('-')[0];    // e.g., "beige" or use full hostname if no hyphen
+        // `yellow-bracketbot.local`
         
         // MQTT client setup - use the extracted username or full hostname
-        const mqttHost = username.includes('.') ? hostname : `${username}-desktop.local`;
+        const mqttHost = username.includes('.') ? hostname : `yellow-bracketbot.local`;
+        console.log("MQTT host:", mqttHost);
         const client = mqtt.connect(`ws://${mqttHost}:9001`);
         
         client.on('connect', function () {
             document.getElementById('status').style.color = 'green';
             document.getElementById('status').innerHTML = 'Connected';
+            client.subscribe('/mapping/traversability_grid', function (err) {
+                if (!err) {
+                    console.log('Subscribed to /mapping/traversability_grid');
+                } else {
+                    console.error('Subscription error:', err);
+                }
+            });
+            client.subscribe('/mapping/robot_pose_grid_coords', function (err) {
+                if (!err) {
+                    console.log('Subscribed to /mapping/robot_pose_grid_coords');
+                } else {
+                    console.error('Subscription error:', err);
+                }
+            });
         });
 
         client.on('error', function (error) {
@@ -82,11 +105,26 @@
             document.getElementById('status').innerHTML = 'Connection failed: ' + error;
         });
 
+        let lastUpdateTime = 0;
+        const updateInterval = 5000; // 5 seconds in milliseconds
+
+        let lastRobotPose = null; // Initialize a variable to store the robot pose
+
         client.on('message', function (topic, message) {
-            console.log("Message received:", message.toString());
+            if (topic === '/mapping/traversability_grid') {
+                console.log("Message received:", topic);
+                const currentTime = Date.now();
+                if (currentTime - lastUpdateTime >= updateInterval) {
+                    const gridData = JSON.parse(message.toString());
+                    displayGrid(gridData, lastRobotPose); // Pass the last known robot pose
+                    lastUpdateTime = currentTime;
+                }
+            } else if (topic === '/mapping/robot_pose_grid_coords') {
+                lastRobotPose = JSON.parse(message.toString()); // Save the robot pose
+            }
         });
 
-            // Add s    tate tracking for keys
+        // Add state tracking for keys
         const keyState = {
             ArrowUp: false,
             ArrowDown: false,
@@ -119,30 +157,73 @@
         function updateVelocity() {
             // Calculate linear velocity (forward/backward)
             let linear = 0;
-            if (keyState.ArrowUp) linear += 0.35;
-            if (keyState.ArrowDown) linear -= 0.35;
+            if (keyState.ArrowUp) linear += 0.2;
+            if (keyState.ArrowDown) linear -= 0.2;
 
             // Calculate angular velocity (rotation)
             let angular = 0;
-            if (keyState.ArrowLeft) angular -= 1.0;
-            if (keyState.ArrowRight) angular += 1.0;
+            if (keyState.ArrowLeft) angular += 1.3;
+            if (keyState.ArrowRight) angular -= 1.3;
 
             sendVelocity(linear, angular);
         }
 
         // Sending messages
         function sendVelocity(linear, angular) {
+            console.log("Sending velocity:", Date.now(), linear, angular);
             const payload = JSON.stringify({
-                linear: linear,
-                angular: angular
+                timestamp: Date.now(),
+                linear_velocity_mps: linear,
+                angular_velocity_radps: angular
             });
-            client.publish("robot/velocity", payload);
+            client.publish("/control/target_velocity", payload);
         }
 
         function sendSpeech() {
             const text = document.getElementById('speechText').value;
             client.publish("robot/speak", text);
             document.getElementById('speechText').value = '';
+        }
+
+        function displayGrid(data, robotPose) {
+            const flattenedGridList = data.flattened_grid_list;
+            const width = data.width;
+
+            const gridContainer = document.getElementById('grid-container');
+            gridContainer.style.position = 'relative'; // Ensure the grid container is positioned relative
+
+            const table = document.createElement('table');
+            table.style.borderCollapse = 'collapse';
+            table.classList.add('grid-table');
+
+            for (let i = width - 10; i >= 0; i -= 10) {
+                const row = document.createElement('tr');
+                for (let j = 0; j < width; j += 10) {
+                    const cell = document.createElement('td');
+                    const value = flattenedGridList[i * width + j];
+                    cell.style.width = '20px';
+                    cell.style.height = '20px';
+                    cell.style.border = '1px solid black';
+                    cell.style.backgroundColor = value ? 'black' : 'white'; // Example color mapping
+
+                    // Check if this cell is closest to the robot pose
+                    if (robotPose && Math.abs(i - robotPose.y_grid) < 5 && Math.abs(j - robotPose.x_grid) < 5) {
+                        cell.style.backgroundColor = 'red'; // Set the robot's position to red
+                    }
+
+                    cell.style.zIndex = '1'; // Ensure grid cells have a lower z-index
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+
+            // Remove any existing table element before adding a new one
+            const existingTable = gridContainer.querySelector('.grid-table');
+            if (existingTable) {
+                gridContainer.removeChild(existingTable);
+            }
+
+            gridContainer.appendChild(table);
         }
     </script>
 </body>
