@@ -13,6 +13,17 @@ def generate_robot_code(user_command: str) -> str:
     
     # Initialize client with API key
     client = anthropic.Anthropic(api_key=api_key)
+
+    filter_prompt = """
+    You are an expert at determining what people mean.
+    The user will give you a string of text which contains a command for a robot. There might be 
+    some extraneous text which is not useful for the robot. You want to determine the exact command
+    that the user intended for the robot. Here's an example:
+
+    uhhhh yeah yeah what move hello forward 5 metres hey -> move forward 5 metres
+
+    Now, given the string of text, determine the command for the robot. Do not provide any preamble, just the answer.
+    """
     
     prompt = """
     You are an expert at controlling a two-motor drive robot. Your goal is to generate Python code that leverages the RobotController class to perform various movements and maneuvers.
@@ -37,11 +48,20 @@ def generate_robot_code(user_command: str) -> str:
     Now, **only output Python code** that satisfies these requirements and showcases various robot maneuvers. The output should be plain Python code using the RobotController class. It must not input any other text.
     """.strip()
 
+    filtered_text = client.messages.create(
+        model="claude-3-5-sonnet-20241022",
+        max_tokens=8096,
+        messages=[
+            {"role": "system", "content": filter_prompt},
+            {"role": "user", "content": user_command}
+        ]
+    )
+
     message = client.messages.create(
         model="claude-3-5-sonnet-20241022",
         max_tokens=8096,
         messages=[
-            {"role": "user", "content": prompt + user_command}
+            {"role": "user", "content": prompt + filtered_text.content[0].text}
         ]
     )
     
